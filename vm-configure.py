@@ -5,6 +5,7 @@ import os
 import socket
 import glob
 import threading
+import subprocess
 
 vdi = 'base' if len(sys.argv) < 2 else sys.argv[1]
 
@@ -74,13 +75,42 @@ def find_and_configure_host(macaddr, ipaddr):
 
 ###########################################################################
 
-with os.popen('avahi-browse -p -k -r _personalcloud-configuration._tcp') as f:
+def osx_ip_of_service(servicename):
+    p = subprocess.Popen('dns-sd -L %s _personalcloud-configuration._tcp' % (servicename,),
+                         stdout = subprocess.PIPE,
+                         shell = True)
     while True:
-        fields = f.readline().strip().split(';', 9)
-        if fields[0] == '=' and fields[2] == 'IPv4':
-            servicename = fields[3]
-            ipaddr = fields[7]
-            macaddrs = fields[9].upper().replace(':', '').replace('"', '').split()
-            print servicename, ipaddr, macaddrs
-            for macaddr in macaddrs:
+        line = p.stdout.readline().strip()
+        m = re.search('can be reached at ([^ ]*):([^ ]*)', line)
+        if m:
+            ipaddr = m.group(1)
+            portstr = m.group(2)
+            if portstr != '22':
+                print 'WARNING: service %s seems to be running ssh on port %s' % (servicename, portstr)
+            p.terminate()
+            return ipaddr
+
+if os.system('which dns-sd >/dev/null') == 0:
+    with os.popen('dns-sd -B _personalcloud-configuration._tcp') as f:
+        while True:
+            fields = re.split(' +', f.readline().strip())
+            if len(fields) >= 6 and fields[5] == '_personalcloud-configuration._tcp.' and fields[1] == 'Add':
+                servicename = fields[6]
+                macaddr = servicename.split('-')[-1].upper()
+                if len(macaddr) != 12: continue
+                ipaddr = osx_ip_of_service(servicename)
+                print servicename, ipaddr, macaddr
                 find_and_configure_host(macaddr, ipaddr)
+elif os.system('which avahi-browse >/dev/null') == 0:
+    with os.popen('avahi-browse -p -k -r _personalcloud-configuration._tcp') as f:
+        while True:
+            fields = f.readline().strip().split(';', 9)
+            if fields[0] == '=' and fields[2] == 'IPv4':
+                servicename = fields[3]
+                ipaddr = fields[7]
+                macaddrs = fields[9].upper().replace(':', '').replace('"', '').split()
+                print servicename, ipaddr, macaddrs
+                for macaddr in macaddrs:
+                    find_and_configure_host(macaddr, ipaddr)
+else:
+    raise Exception('Neither dns-sd nor avahi-browse is available - cannot continue')
