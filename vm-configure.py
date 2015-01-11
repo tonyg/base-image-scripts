@@ -8,6 +8,7 @@ import threading
 import subprocess
 
 vdi = 'base' if len(sys.argv) < 2 else sys.argv[1]
+await = sys.argv[2] if len(sys.argv) >= 3 else None
 
 ###########################################################################
 
@@ -72,13 +73,20 @@ def find_and_configure_host(macaddr, ipaddr):
             if cardmac == macaddr:
                 vmname = v['name']
                 print configure_host(vmname, ipaddr)
+                sys.stdout.flush()
+                if await and vmname == await:
+                    print 'Configuration of awaited VM', vmname, 'complete.'
+                    sys.stdout.flush()
+                    global mainloop_running
+                    mainloop_running = False
 
 ###########################################################################
 
+def popen(command):
+    return subprocess.Popen(command, stdout = subprocess.PIPE, shell = True)
+
 def osx_ip_of_service(servicename):
-    p = subprocess.Popen('dns-sd -L %s _personalcloud-configuration._tcp' % (servicename,),
-                         stdout = subprocess.PIPE,
-                         shell = True)
+    p = popen('dns-sd -L %s _personalcloud-configuration._tcp' % (servicename,))
     while True:
         line = p.stdout.readline().strip()
         m = re.search('can be reached at ([^ ]*):([^ ]*)', line)
@@ -90,27 +98,35 @@ def osx_ip_of_service(servicename):
             p.terminate()
             return ipaddr
 
+if await:
+    print 'Awaiting VM', await, '...'
+    sys.stdout.flush()
+mainloop_running = True
 if os.system('which dns-sd >/dev/null') == 0:
-    with os.popen('dns-sd -B _personalcloud-configuration._tcp') as f:
-        while True:
-            fields = re.split(' +', f.readline().strip())
-            if len(fields) >= 6 and fields[5] == '_personalcloud-configuration._tcp.' and fields[1] == 'Add':
-                servicename = fields[6]
-                macaddr = servicename.split('-')[-1].upper()
-                if len(macaddr) != 12: continue
-                ipaddr = osx_ip_of_service(servicename)
-                print servicename, ipaddr, macaddr
-                find_and_configure_host(macaddr, ipaddr)
+    p = popen('dns-sd -B _personalcloud-configuration._tcp')
+    f = p.stdout
+    while mainloop_running:
+        fields = re.split(' +', f.readline().strip())
+        if len(fields) >= 6 and fields[5] == '_personalcloud-configuration._tcp.' and fields[1] == 'Add':
+            servicename = fields[6]
+            macaddr = servicename.split('-')[-1].upper()
+            if len(macaddr) != 12: continue
+            ipaddr = osx_ip_of_service(servicename)
+            print servicename, ipaddr, macaddr
+            find_and_configure_host(macaddr, ipaddr)
+    p.terminate()
 elif os.system('which avahi-browse >/dev/null') == 0:
-    with os.popen('avahi-browse -p -k -r _personalcloud-configuration._tcp') as f:
-        while True:
-            fields = f.readline().strip().split(';', 9)
-            if fields[0] == '=' and fields[2] == 'IPv4':
-                servicename = fields[3]
-                ipaddr = fields[7]
-                macaddrs = fields[9].upper().replace(':', '').replace('"', '').split()
-                print servicename, ipaddr, macaddrs
-                for macaddr in macaddrs:
-                    find_and_configure_host(macaddr, ipaddr)
+    p = popen('avahi-browse -p -k -r _personalcloud-configuration._tcp')
+    f = p.stdout
+    while mainloop_running:
+        fields = f.readline().strip().split(';', 9)
+        if fields[0] == '=' and fields[2] == 'IPv4':
+            servicename = fields[3]
+            ipaddr = fields[7]
+            macaddrs = fields[9].upper().replace(':', '').replace('"', '').split()
+            print servicename, ipaddr, macaddrs
+            for macaddr in macaddrs:
+                find_and_configure_host(macaddr, ipaddr)
+    p.terminate()
 else:
     raise Exception('Neither dns-sd nor avahi-browse is available - cannot continue')
