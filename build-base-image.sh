@@ -78,6 +78,9 @@ update-grub
 grub-install --no-floppy --recheck --modules="biosdisk part_msdos" /dev/${DEVICE}
 sed -e 's:/dev/${DEVICE}p1:/dev/sda1:g' -i /boot/grub/grub.cfg
 rm /usr/sbin/policy-rc.d
+sync
+sync
+sync
 EOF
 
 cp image-rc-local.sh $TARGET/etc/rc.local
@@ -88,9 +91,15 @@ chmod 0700 $TARGET/root/.ssh
 cp ${VDI}-root-key.pub $TARGET/root/.ssh/authorized_keys
 chmod 0644 $TARGET/root/.ssh/authorized_keys
 
+sync
 umount $TARGET/dev
 umount $TARGET/proc
 umount $TARGET/sys
+mount -o remount,ro $TARGET
+sync
+blockdev --flushbufs /dev/${DEVICE}
+python -c 'import os; os.fsync(open("/dev/'${DEVICE}'", "r+b"))'
+sleep 1
 umount $TARGET
 rmdir $TARGET
 
