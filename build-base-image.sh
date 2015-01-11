@@ -1,9 +1,9 @@
 #!/bin/sh
 # Based on the instructions in making-debian-images.md
 
-SIZE=${SIZE:-10000}
+SIZE=${SIZE:-10G}
 VDI=${VDI:-base}
-DEVICE=${DEVICE:-nbd0}
+DEVICE=${DEVICE:-loop0}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
 SUITE=${SUITE:-wheezy}
@@ -28,12 +28,10 @@ if [ ! -f ${VDI}-root-key.pub ]; then
     chown $(logname) ${VDI}-root-key ${VDI}-root-key.pub
 fi
 
-sudo -u $(logname) VBoxManage createhd --filename $VDI --size $SIZE
-modprobe nbd max_part=16
-qemu-nbd -c /dev/${DEVICE} $VDI.vdi
-sleep 1
-parted /dev/${DEVICE} mktable msdos
-parted /dev/${DEVICE} mkpart primary '0%' '100%'
+qemu-img create -f raw $VDI.raw $SIZE
+parted $VDI.raw mktable msdos
+parted $VDI.raw mkpart primary '0%' '100%'
+losetup -P /dev/${DEVICE} $VDI.raw
 mkfs.ext4 /dev/${DEVICE}p1
 
 mkdir $TARGET
@@ -98,6 +96,10 @@ rmdir $TARGET
 
 sync
 sleep 1
-qemu-nbd -d /dev/${DEVICE}
+losetup -d /dev/${DEVICE}
 sleep 1
+
+qemu-img convert -f raw -O vdi $VDI.raw $VDI.vdi
+chown $(logname) $VDI.vdi
 sudo -u $(logname) VBoxManage modifyhd $VDI.vdi --type immutable --compact
+rm $VDI.raw
