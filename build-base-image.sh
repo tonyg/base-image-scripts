@@ -77,6 +77,7 @@ sed -e 's:GRUB_TIMEOUT=5:GRUB_TIMEOUT=1:' -i /etc/default/grub
 update-grub
 grub-install --no-floppy --recheck --modules="biosdisk part_msdos" /dev/${DEVICE}
 sed -e 's:/dev/${DEVICE}p1:/dev/sda1:g' -i /boot/grub/grub.cfg
+echo 'rootfs / rootfs rw 0 0' > /etc/fstab
 rm /usr/sbin/policy-rc.d
 sync
 sync
