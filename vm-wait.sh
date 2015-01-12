@@ -1,13 +1,14 @@
 #!/bin/sh
 vmname=$1
-if [ -z "$vmname" ]
+vdi=${2:-base}
+if [ -z "$vmname" -o -z "$vdi" ]
 then
-    echo "Usage: vm-wait.sh <vmname>"
+    echo "Usage: vm-wait.sh <vmname> <basevdibasename>"
     exit 1
 fi
 
 VBoxManage startvm "$vmname" --type headless
-$(dirname "$0")/vm-configure.py base ${vmname}
+$(dirname "$0")/vm-configure.py ${vdi} ${vmname}
 
 echo
 echo "$vmname configured and booting."
