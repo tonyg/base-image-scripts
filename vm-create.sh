@@ -7,6 +7,12 @@ basevdi=$4
 RAM=${RAM:-256}
 VMGROUPS=${VMGROUPS:-/personalcloud}
 
+if [ $(whoami) = "root" ]
+then
+    echo "Don't run this script as root."
+    exit 1
+fi
+
 if [ -z "$vmname" -o -z "$nettype" -o -z "$ifacename" -o -z "$basevdi" -o ! -r "$basevdi" ]
 then
     echo "Usage: vm-create.sh <vmname> (bridged|hostonly) <ifacename> <basevdi>"
