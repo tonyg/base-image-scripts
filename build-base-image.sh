@@ -6,7 +6,7 @@ VDI=${VDI:-base}
 DEVICE=${DEVICE:-loop0}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
-SUITE=${SUITE:-wheezy}
+SUITE=${SUITE:-jessie}
 
 # These defaults are useful for working with ansible.
 PKGS=${PKGS:-python python-apt}
