@@ -166,3 +166,10 @@ In order to change the hostname of the new guest,
 
 and reboot. These steps are included in the postbootscript.sh script
 inserted by `vm-create.sh`.
+
+# VBoxManage tips
+
+To remove an image file:
+
+    vboxmanage list hdds
+    vboxmanage closemedium disk <uuid> --delete
