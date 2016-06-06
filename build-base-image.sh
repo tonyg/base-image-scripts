@@ -3,7 +3,7 @@
 
 SIZE=${SIZE:-10G}
 VDI=${VDI:-base}
-DEVICE=${DEVICE:-loop0}
+DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
 SUITE=${SUITE:-jessie}
@@ -21,6 +21,11 @@ if [ -f "$VDI.vdi" ]; then
     exit 1
 fi
 
+if [ -z "${DEVICE}" ]; then
+    echo "losetup --find couldn't find a device. Aborting."
+    exit 1
+fi
+
 set -e
 
 if [ ! -f ${VDI}-root-key.pub ]; then
@@ -31,13 +36,13 @@ fi
 qemu-img create -f raw $VDI.raw $SIZE
 parted $VDI.raw mktable msdos
 parted $VDI.raw mkpart primary '0%' '100%'
-losetup -P /dev/${DEVICE} $VDI.raw
-mkfs.ext4 /dev/${DEVICE}p1
+losetup -P ${DEVICE} $VDI.raw
+mkfs.ext4 ${DEVICE}p1
 
 mkdir $TARGET
-mount /dev/${DEVICE}p1 $TARGET
+mount ${DEVICE}p1 $TARGET
 
-http_proxy="${PROXY}" debootstrap ${SUITE} $TARGET
+http_proxy="${PROXY}" debootstrap ${SUITE} $TARGET http://ftp.debian.org/debian/
 
 mount --bind /dev $TARGET/dev
 mount --bind /proc $TARGET/proc
@@ -75,8 +80,8 @@ echo '127.0.1.1 template-debian' >> /etc/hosts
 echo template-debian > /etc/hostname
 sed -e 's:GRUB_TIMEOUT=5:GRUB_TIMEOUT=1:' -i /etc/default/grub
 update-grub
-grub-install --no-floppy --recheck --modules="biosdisk part_msdos" /dev/${DEVICE}
-sed -e 's:/dev/${DEVICE}p1:/dev/sda1:g' -i /boot/grub/grub.cfg
+grub-install --no-floppy --recheck --modules="biosdisk part_msdos" ${DEVICE}
+sed -e 's:${DEVICE}p1:/dev/sda1:g' -i /boot/grub/grub.cfg
 echo 'rootfs / rootfs rw 0 0' > /etc/fstab
 rm /usr/sbin/policy-rc.d
 sync
@@ -98,15 +103,15 @@ umount $TARGET/proc
 umount $TARGET/sys
 mount -o remount,ro $TARGET
 sync
-blockdev --flushbufs /dev/${DEVICE}
-python -c 'import os; os.fsync(open("/dev/'${DEVICE}'", "r+b"))'
+blockdev --flushbufs ${DEVICE}
+python -c 'import os; os.fsync(open("'${DEVICE}'", "r+b"))'
 sleep 1
 umount $TARGET
 rmdir $TARGET
 
 sync
 sleep 1
-losetup -d /dev/${DEVICE}
+losetup -d ${DEVICE}
 sleep 1
 
 qemu-img convert -f raw -O vdi $VDI.raw $VDI.vdi
