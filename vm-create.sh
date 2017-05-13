@@ -33,7 +33,7 @@ getfield () {
 common_setup () {
     VBoxManage modifyhd "$basevdi" --type immutable --compact
     VBoxManage createvm --name "$vmname" --ostype Debian_64 --register
-    VBoxManage modifyvm "$vmname" --memory ${RAM} --groups ${VMGROUPS}
+    VBoxManage modifyvm "$vmname" --memory ${RAM} --groups ${VMGROUPS} --audio none
     VBoxManage storagectl "$vmname" --name "IDE Controller" --add ide
     VBoxManage storageattach "$vmname" --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium "$basevdi"
 
