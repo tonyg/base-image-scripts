@@ -6,7 +6,7 @@ VDI=${VDI:-base}
 DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
-SUITE=${SUITE:-jessie}
+SUITE=${SUITE:-stretch}
 
 # These defaults are useful for working with ansible.
 PKGS=${PKGS:-python python-apt}
@@ -71,10 +71,6 @@ apt-get install -y sudo openssh-server ${PKGS}
 rm /etc/ssh/ssh_host_*
 echo 'auto lo' > /etc/network/interfaces
 echo 'iface lo inet loopback' >> /etc/network/interfaces
-echo 'auto eth0' >> /etc/network/interfaces
-echo 'iface eth0 inet dhcp' >> /etc/network/interfaces
-echo 'auto eth1' >> /etc/network/interfaces
-echo 'iface eth1 inet dhcp' >> /etc/network/interfaces
 echo '127.0.0.1 localhost' > /etc/hosts
 echo '127.0.1.1 template-debian' >> /etc/hosts
 echo template-debian > /etc/hostname

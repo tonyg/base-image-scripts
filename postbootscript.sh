@@ -1,5 +1,10 @@
 #!/bin/sh
 
+cat > /etc/network/interfaces <<EOF
+auto lo
+iface lo inet loopback
+EOF
+
 ifaces="$(ls /sys/class/net)"
 allmacs=''
 chosenmac=''
@@ -9,6 +14,9 @@ do
     if [ "$macaddr" != '00:00:00:00:00:00' ]; then
 	allmacs="$allmacs $macaddr"
 	chosenmac=${chosenmac:-$macaddr}
+
+        echo "auto $iface" >> /etc/network/interfaces
+        echo "iface $iface inet dhcp" >> /etc/network/interfaces
     fi
 done
 
@@ -19,6 +27,10 @@ fi
 
 tmphostname="tmp-$(echo $chosenmac | tr -d ':')"
 
+# Pick up the net /etc/network/interfaces:
+service networking restart
+
+# (Re)generate host keys
 dpkg-reconfigure openssh-server
 
 echo "Awaiting configuration..."
