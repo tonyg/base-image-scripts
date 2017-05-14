@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+export LIBVIRT_DEFAULT_URI=${LIBVIRT_DEFAULT_URI:-qemu:///system}
 vmname=$1
 if [ -z "$vmname" ]
 then
