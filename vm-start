@@ -2,6 +2,7 @@
 vmname=$1
 if [ -z "$vmname" ]
 then
+    virsh list --inactive
     echo "Usage: vm-start <vmname>"
     exit 1
 fi
