@@ -1,5 +1,9 @@
 # Debootstrapping a reusable VirtualBox debian image
 
+**NB. The text here is a little out-of-date, but explains what's going
+  on in `build-base-image.sh` fairly well. Go read
+  [build-base-image.sh](build-base-image.sh)!**
+
 (Based on `me.org` journal entry of 2010-04-15 14:24:46.)
 
 The idea here is to use `debootstrap` to directly install debian on a
