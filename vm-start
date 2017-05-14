@@ -1,0 +1,9 @@
+#!/bin/sh
+vmname=$1
+if [ -z "$vmname" ]
+then
+    echo "Usage: vm-start <vmname>"
+    exit 1
+fi
+
+virsh start "$vmname"

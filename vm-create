@@ -1,0 +1,220 @@
+#!/usr/bin/env racket
+#lang racket
+
+(require racket/cmdline)
+(require xml)
+(require xml/path)
+(require "kvm-utils.rkt")
+
+(define base-path
+  (path->string (build-path (getenv "HOME") "src/base-image-scripts/base.img")))
+
+(define image-dir
+  (path->string (build-path (getenv "HOME") "src/base-image-scripts/personalcloud-images")))
+
+(define root-key
+  (path->string (build-path (getenv "HOME") "src/base-image-scripts/base-root-key")))
+
+(define guest-ram 256)
+(define guest-cpus 1)
+
+(define-values (vmname)
+  (command-line
+   #:once-each
+   [("--key" "-k") PATH
+    ("path to base-root-key SSH private key file" (format "default: ~a" root-key))
+    (set! root-key PATH)]
+   [("--base" "-b") PATH
+    ("path to base.img" (format "default: ~a" base-path))
+    (set! base-path PATH)]
+   [("--ram" "-m") MEGABYTES
+    ("amount of RAM to give the domain" (format "default: ~a megabytes" guest-ram))
+    (set! guest-ram (string->number MEGABYTES))]
+   [("--cpus" "-c") CPUS
+    ("number of CPUS to give the domain" (format "default: ~a" guest-cpus))
+    (set! guest-cpus (string->number CPUS))]
+   [("--output" "-o") PATH
+    ("path to directory for the new .img" (format "default: ~a" image-dir))
+    (set! image-dir PATH)]
+   #:args (vmname)
+   (values vmname)))
+
+(define image-path (path->string (build-path image-dir (~a vmname ".img"))))
+
+(define script-template #<<ENDSCRIPT
+if [ -f /root/personalcloud-configured ]; then
+  echo "Skipping {{ vmname }} - already configured"
+else
+  if [ "{{ vmname }}" != "$(hostname -s)" ]; then
+    echo "Updating hostname from $(hostname -s) to {{ vmname }}"
+    echo "{{ vmname }}" > /etc/hostname
+    echo "127.0.0.1 localhost" > /etc/hosts
+    echo "127.0.1.1 "{{ vmname }}"" >> /etc/hosts
+    hostname "{{ vmname }}"
+  else
+    echo "Hostname is already configured."
+  fi
+  echo "Configuration complete."
+  touch /root/personalcloud-configured
+fi
+ENDSCRIPT
+  )
+
+(define (configure-host domain-name ipaddr)
+  (log-info "Configuring ~a to have name ~a" ipaddr domain-name)
+  (parameterize ((current-environment-variables
+                  (environment-variables-copy (current-environment-variables))))
+    (putenv "SSH_AUTH_SOCK" "")
+    (define-values (child-process from-process to-process stderr-from-process)
+      (subprocess #f #f (current-error-port)
+                  (find-executable-path "ssh")
+                  "-o" "BatchMode=yes"
+                  "-o" "StrictHostKeyChecking=no"
+                  "-o" "UserKnownHostsFile=/dev/null"
+                  "-i" root-key
+                  (format "root@~a" ipaddr)
+                  "sh"))
+    (when stderr-from-process
+      (error 'configure-host "Internal error: configured subprocess ports incorrectly"))
+    (display (substitute script-template (hash 'vmname domain-name)) to-process)
+    (flush-output to-process)
+    (close-output-port to-process)
+    (let ((result (port->string from-process)))
+      (close-input-port from-process)
+      (log-info "Output from remote:\n~a" result))))
+
+;; (Setof MACString) IPv4String -> (Setof DomainNameString)
+(define (find-and-configure-host discovered-macs ipaddr)
+  (or (for/or ((di (map domain-info (running-domains))))
+        (define machine-name (se-path* '(domain name) di))
+        (define machine-macs
+          (list->set (filter-map (match-lambda [`(mac ((address ,addr))) (clean-mac addr)] [_ #f])
+                                 (se-path*/list '(domain devices interface) di))))
+        (and (not (set-empty? (set-intersect discovered-macs machine-macs)))
+             (begin0 (set machine-name)
+               (configure-host machine-name ipaddr))))
+      (set)))
+
+(define (vm-configure #:wait-for [wait-for-vmnames #f])
+  (with-input-from-file "/dev/null"
+    (lambda ()
+      (define-values (child-process from-process to-process stderr-from-process)
+        (subprocess #f (current-input-port) (current-error-port)
+                    (find-executable-path "avahi-browse")
+                    "-p" "-k" "-r" "_personalcloud-configuration._tcp"))
+      (when (or to-process stderr-from-process)
+        (error 'vm-configure "Internal error: configured subprocess ports incorrectly"))
+      (let loop ((seen (set)))
+        (if (and wait-for-vmnames (subset? wait-for-vmnames seen))
+            (begin (subprocess-kill child-process #t)
+                   (close-input-port from-process)
+                   (void))
+            (match (read-line from-process)
+              [(? eof-object?)
+               (error 'vm-configure "avahi-browse terminated unexpectedly")]
+              [line
+               (match (string-split line ";")
+                 [(list "=" _ifname "IPv4" _tmpid _svcname _local??
+                        _tmphost ipaddr _sshport quoted-macs)
+                  (define macs (list->set (string-split (clean-mac quoted-macs))))
+                  (loop (set-union seen (find-and-configure-host macs ipaddr)))]
+                 [_ (loop seen)])]))))))
+
+(define (vm-wait vmname)
+  (let keep-waiting ()
+    (log-info "Waiting for ping to respond...")
+    (unless (parameterize ((current-output-port (open-output-nowhere)))
+              (system* (find-executable-path "ping") "-c" "1" (format "~a.local" vmname)))
+      (keep-waiting)))
+  (sleep 2))
+
+(define (main)
+  (printf "----------------------------------------\n")
+  (printf "About to create domain \"~a\",\n" vmname)
+  (printf "  based on ~a\n" base-path)
+  (printf "  with disk image ~a\n" image-path)
+  (printf "  and ~a MB RAM\n" guest-ram)
+  (printf "  and ~a CPUs\n" guest-cpus)
+  (printf "----------------------------------------\n")
+  (printf "Ctrl-C to cancel, enter to continue.\n")
+  (read-line)
+
+  ;;---------------------------------------------------------------------------
+
+  (when (not (file-exists? base-path))
+    (error 'vm-create "Cannot find base image ~a" base-path))
+
+  (when (something-exists? image-path)
+    (error 'vm-create "Destination image ~a already exists" image-path))
+
+  (when (domain-info vmname)
+    (error 'vm-create "Domain ~a already exists" vmname))
+
+  (make-directory* image-dir)
+
+  (system* (find-executable-path "qemu-img")
+           "create"
+           "-f" "qcow2"
+           "-b" base-path
+           image-path)
+
+  (call-with-temporary-file
+   (xexpr->string
+    `(domain ((type "kvm"))
+      (name ,vmname)
+      (memory ((unit "MiB")) ,(number->string guest-ram))
+      (vcpu ,(number->string guest-cpus))
+      (os (type ((arch "x86_64") (machine "pc-i440fx-2.8")) "hvm")
+          (boot ((dev "hd"))))
+      (features (acpi)
+                (apic)
+                (vmport ((state "off"))))
+      (devices
+       (disk ((device "disk") (type "file"))
+             (driver ((name "qemu") (type "qcow2")))
+             (source ((file ,image-path)))
+             (target ((bus "virtio") (dev "vda"))))
+       (interface ((type "network"))
+                  (source ((network "default")))
+                  (model ((type "virtio")))
+                  (address ((bus "0x00")
+                            (domain "0x0000")
+                            (function "0x0")
+                            (slot "0x03")
+                            (type "pci"))))
+       (serial ((type "pty")) (target ((port "0"))))
+       (console ((type "pty")) (target ((port "0") (type "serial"))))
+       (input ((bus "ps2") (type "mouse")))
+       (input ((bus "ps2") (type "keyboard")))
+       (graphics ((autoport "yes") (type "spice"))
+                 (listen ((type "address")))
+                 (image ((compression "off"))))
+       (video (model ((heads "1")
+                      (primary "yes")
+                      (ram "65536")
+                      (type "qxl")
+                      (vgamem "16384")
+                      (vram "65536")))
+              (address ((bus "0x00")
+                        (domain "0x0000")
+                        (function "0x0")
+                        (slot "0x02")
+                        (type "pci"))))
+       (memballoon ((model "virtio"))
+                   (address
+                    ((bus "0x00")
+                     (domain "0x0000")
+                     (function "0x0")
+                     (slot "0x08")
+                     (type "pci")))))))
+   (lambda (tmpfile)
+     (system* (find-executable-path "virsh")
+              "define" tmpfile
+              "--validate")))
+
+  (system* (find-executable-path "virsh") "start" vmname)
+
+  (vm-configure #:wait-for (set vmname))
+  (vm-wait vmname))
+
+(void (main))

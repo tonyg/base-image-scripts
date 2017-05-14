@@ -8,6 +8,9 @@ TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
 SUITE=${SUITE:-stretch}
 
+VDITYPE=${VDITYPE:-qcow2}
+VDIEXT=${VDIEXT:-img}
+
 # These defaults are useful for working with ansible.
 PKGS=${PKGS:-python python-apt}
 
@@ -16,8 +19,8 @@ if [ `whoami` != 'root' ]; then
     exit 1
 fi
 
-if [ -f "$VDI.vdi" ]; then
-    echo "Uhoh! $VDI.vdi exists. Aborting."
+if [ -f "$VDI.$VDIEXT" ]; then
+    echo "Uhoh! $VDI.$VDIEXT exists. Aborting."
     exit 1
 fi
 
@@ -110,7 +113,6 @@ sleep 1
 losetup -d ${DEVICE}
 sleep 1
 
-qemu-img convert -f raw -O vdi $VDI.raw $VDI.vdi
-chown $(logname) $VDI.vdi
-sudo -u $(logname) VBoxManage modifyhd $VDI.vdi --type immutable --compact
+qemu-img convert -f raw -O $VDITYPE $VDI.raw $VDI.$VDIEXT
+chown $(logname) $VDI.$VDIEXT
 rm $VDI.raw

@@ -1,0 +1,33 @@
+#!/usr/bin/env racket
+#lang racket
+
+(require xml/path)
+(require racket/cmdline)
+(require "kvm-utils.rkt")
+
+(define-values (vmname)
+  (command-line
+   #:args (vmname)
+   (values vmname)))
+
+(define (main)
+  (printf "Will destroy vm ~a. Enter 'yes' to continue.\n" vmname)
+  (unless (equal? (read-line) "yes")
+    (error 'vm-destroy "Aborting because of lack of confirmation."))
+
+  (define di (domain-info vmname))
+  (when (not di)
+    (error 'vm-destroy "No such domain ~a" vmname))
+
+  (system* (find-executable-path "virsh") "destroy" vmname) ;; stops it, if it's running
+  (system* (find-executable-path "virsh") "undefine" vmname)
+
+  (match (filter-map (match-lambda [`(source ((file ,f))) f] [_ #f])
+                     (se-path*/list '(domain devices disk) di))
+    [(list image-filename)
+     (delete-file* image-filename)]
+    [image-filenames
+     (log-error "Cowardly refusing to delete anything other than exactly one image file; got ~a"
+                image-filenames)]))
+
+(void (main))

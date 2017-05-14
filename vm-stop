@@ -1,0 +1,12 @@
+#!/bin/sh
+vmname=$1
+if [ -z "$vmname" ]
+then
+    virsh list
+    echo "Usage: vm-stop <vmname>"
+    exit 1
+fi
+echo "Will ACPI-stop vm $vmname. Ctrl-C to cancel, enter to continue."
+read dummy
+
+virsh shutdown "$vmname"
