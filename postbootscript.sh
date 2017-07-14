@@ -1,5 +1,10 @@
 #!/bin/sh
 
+cat > /etc/apt/apt.conf.d/99tonyg-norecommends <<EOF
+APT::Install-Recommends "0";
+APT::Install-Suggests "0";
+EOF
+
 cat > /etc/network/interfaces <<EOF
 auto lo
 iface lo inet loopback
