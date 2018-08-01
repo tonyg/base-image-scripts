@@ -1,6 +1,0 @@
-#!/bin/sh
-squid_topversion=3
-squid_midversion=5
-squid_minversion=23
-squid_version=${squid_topversion}.${squid_midversion}.${squid_minversion}
-squid_archive=squid-${squid_version}.tar.bz2

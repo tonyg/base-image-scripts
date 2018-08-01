@@ -1,2 +1,2 @@
 #!/bin/sh
-exec rm -rf /var/tmp/tonyg-dpkg-cache
+sudo rm -rf /var/tmp/tonyg-dpkg-cache
