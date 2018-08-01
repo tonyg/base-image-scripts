@@ -45,7 +45,7 @@ mkfs.ext4 ${DEVICE}p1
 mkdir $TARGET
 mount ${DEVICE}p1 $TARGET
 
-http_proxy="${PROXY}" debootstrap ${SUITE} $TARGET http://ftp.debian.org/debian/
+http_proxy="${PROXY}" debootstrap ${SUITE} $TARGET http://httpredir.debian.org/debian/
 
 mount --bind /dev $TARGET/dev
 mount --bind /proc $TARGET/proc
@@ -58,8 +58,8 @@ export DEBIAN_FRONTEND=noninteractive
 echo "exit 101" > /usr/sbin/policy-rc.d
 chmod +x /usr/sbin/policy-rc.d
 rm -f /etc/apt/sources.list
-echo "deb http://ftp.us.debian.org/debian ${SUITE} main contrib non-free" >> /etc/apt/sources.list
-echo "deb http://ftp.us.debian.org/debian ${SUITE}-updates main contrib non-free" >> /etc/apt/sources.list
+echo "deb http://httpredir.debian.org/debian ${SUITE} main contrib non-free" >> /etc/apt/sources.list
+echo "deb http://httpredir.debian.org/debian ${SUITE}-updates main contrib non-free" >> /etc/apt/sources.list
 echo "deb http://security.debian.org/ ${SUITE}/updates main contrib non-free" >> /etc/apt/sources.list
 rm -rf /var/lib/apt/lists
 mkdir -p /var/lib/apt/lists/partial
