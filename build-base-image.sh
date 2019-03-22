@@ -31,6 +31,8 @@ fi
 
 set -e
 
+apt install --no-install-recommends --no-install-suggests debootstrap
+
 if [ ! -f ${VDI}-root-key.pub ]; then
     ssh-keygen -f ${VDI}-root-key -P ""
     chown $(logname) ${VDI}-root-key ${VDI}-root-key.pub
