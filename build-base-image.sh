@@ -7,6 +7,7 @@ DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
 SUITE=${SUITE:-stretch}
+SECURITY=${SECURITY:-yes}
 
 VDITYPE=${VDITYPE:-qcow2}
 VDIEXT=${VDIEXT:-img}
@@ -62,7 +63,7 @@ chmod +x /usr/sbin/policy-rc.d
 rm -f /etc/apt/sources.list
 echo "deb http://httpredir.debian.org/debian ${SUITE} main contrib non-free" >> /etc/apt/sources.list
 echo "deb http://httpredir.debian.org/debian ${SUITE}-updates main contrib non-free" >> /etc/apt/sources.list
-echo "deb http://security.debian.org/ ${SUITE}/updates main contrib non-free" >> /etc/apt/sources.list
+if [ "${SECURITY}" = "yes" ]; then echo "deb http://security.debian.org/ ${SUITE}/updates main contrib non-free" >> /etc/apt/sources.list; fi
 rm -rf /var/lib/apt/lists
 mkdir -p /var/lib/apt/lists/partial
 apt-get update
