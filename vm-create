@@ -15,8 +15,9 @@
 (define root-key
   (path->string (build-path (getenv "HOME") "src/base-image-scripts/base-root-key")))
 
-(define guest-ram 256)
-(define guest-cpus 1)
+(define guest-ram #f)
+(define guest-cpus #f)
+(define interactive? #f)
 
 (define-values (vmname)
   (command-line
@@ -36,8 +37,43 @@
    [("--output" "-o") PATH
     ("path to directory for the new .img" (format "default: ~a" image-dir))
     (set! image-dir PATH)]
-   #:args (vmname)
+   [("--interactive" "-i")
+    ("use interactive configuration for values not supplied on the command line")
+    (set! interactive? #t)]
+   #:args ([vmname #f])
    (values vmname)))
+
+(define (prompt-for what parser default)
+  (let retry ()
+    (printf "~a" what)
+    (when default (printf " [~a]" default))
+    (printf ": ")
+    (flush-output)
+    (match (read-line)
+      [(? eof-object?)
+       (eprintf "EOF during interactive configuration.\n")
+       (exit 1)]
+      ["" #:when default
+       default]
+      [""
+       (printf "No default value is available. Please try again, or hit Ctrl-C to abandon.\n")
+       (retry)]
+      [(app parser candidate)
+       (or candidate
+           (begin (printf "Invalid input. Please try again, or hit Ctrl-C to abandon.\n")
+                  (retry)))])))
+
+(define *default-guest-ram* 256)
+(define *default-guest-cpus* 1)
+
+(when (or interactive? ;; explicitly interactive
+          (not vmname)) ;; implicitly interactive
+  (when (not vmname) (set! vmname (prompt-for "VM name" values #f)))
+  (when (not guest-ram) (set! guest-ram (prompt-for "RAM in megabytes" string->number *default-guest-ram*)))
+  (when (not guest-cpus) (set! guest-cpus (prompt-for "Number of CPUs" string->number *default-guest-cpus*))))
+
+(when (not guest-ram) (set! guest-ram *default-guest-ram*))
+(when (not guest-cpus) (set! guest-cpus *default-guest-cpus*))
 
 (define image-path (path->string (build-path image-dir (~a vmname ".img"))))
 
