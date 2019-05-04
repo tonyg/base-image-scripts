@@ -9,14 +9,12 @@
 (define base-path
   (path->string (build-path (getenv "HOME") "src/base-image-scripts/base.img")))
 
-(define image-dir
-  (path->string (build-path (getenv "HOME") "src/base-image-scripts/personalcloud-images")))
-
 (define root-key
   (path->string (build-path (getenv "HOME") "src/base-image-scripts/base-root-key")))
 
 (define guest-ram #f)
 (define guest-cpus #f)
+(define image-dir #f)
 (define interactive? #f)
 
 (define-values (vmname)
@@ -65,15 +63,19 @@
 
 (define *default-guest-ram* 256)
 (define *default-guest-cpus* 1)
+(define *default-image-dir*
+  (path->string (build-path (getenv "HOME") "src/base-image-scripts/personalcloud-images")))
 
 (when (or interactive? ;; explicitly interactive
           (not vmname)) ;; implicitly interactive
   (when (not vmname) (set! vmname (prompt-for "VM name" values #f)))
   (when (not guest-ram) (set! guest-ram (prompt-for "RAM in megabytes" string->number *default-guest-ram*)))
-  (when (not guest-cpus) (set! guest-cpus (prompt-for "Number of CPUs" string->number *default-guest-cpus*))))
+  (when (not guest-cpus) (set! guest-cpus (prompt-for "Number of CPUs" string->number *default-guest-cpus*)))
+  (when (not image-dir) (set! image-dir (prompt-for "Location to place disk image" values *default-image-dir*))))
 
 (when (not guest-ram) (set! guest-ram *default-guest-ram*))
 (when (not guest-cpus) (set! guest-cpus *default-guest-cpus*))
+(when (not image-dir) (set! image-dir *default-image-dir*))
 
 (define image-path (path->string (build-path image-dir (~a vmname ".img"))))
 
