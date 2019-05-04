@@ -27,13 +27,13 @@
     ("path to base.img" (format "default: ~a" base-path))
     (set! base-path PATH)]
    [("--ram" "-m") MEGABYTES
-    ("amount of RAM to give the domain" (format "default: ~a megabytes" guest-ram))
+    ("amount of RAM to give the domain" (format "default: ~a megabytes" *default-guest-ram*))
     (set! guest-ram (string->number MEGABYTES))]
    [("--cpus" "-c") CPUS
-    ("number of CPUS to give the domain" (format "default: ~a" guest-cpus))
+    ("number of CPUS to give the domain" (format "default: ~a" *default-guest-cpus*))
     (set! guest-cpus (string->number CPUS))]
    [("--output" "-o") PATH
-    ("path to directory for the new .img" (format "default: ~a" image-dir))
+    ("path to directory for the new .img" (format "default: ~a" *default-image-dir*))
     (set! image-dir PATH)]
    [("--interactive" "-i")
     ("use interactive configuration for values not supplied on the command line")
