@@ -15,7 +15,14 @@
 (define guest-ram #f)
 (define guest-cpus #f)
 (define image-dir #f)
+(define image-size #f)
 (define interactive? #f)
+
+(define *default-guest-ram* 256)
+(define *default-guest-cpus* 1)
+(define *default-image-dir*
+  (path->string (build-path (getenv "HOME") "src/base-image-scripts/personalcloud-images")))
+(define *default-image-size* #f) ;; #f --> same as base image size
 
 (define-values (vmname)
   (command-line
@@ -35,23 +42,28 @@
    [("--output" "-o") PATH
     ("path to directory for the new .img" (format "default: ~a" *default-image-dir*))
     (set! image-dir PATH)]
+   [("--disk" "-d") SIZE
+    ("size of virtual disk image (e.g. \"30G\")" "default: size of base image")
+    (set! image-size SIZE)]
    [("--interactive" "-i")
     ("use interactive configuration for values not supplied on the command line")
     (set! interactive? #t)]
    #:args ([vmname #f])
    (values vmname)))
 
-(define (prompt-for what parser default)
+(define (prompt-for what parser default
+                    #:has-default? [has-default? #t]
+                    #:default-text [default-text default])
   (let retry ()
     (printf "~a" what)
-    (when default (printf " [~a]" default))
+    (when has-default? (printf " [~a]" default-text))
     (printf ": ")
     (flush-output)
     (match (read-line)
       [(? eof-object?)
        (eprintf "EOF during interactive configuration.\n")
        (exit 1)]
-      ["" #:when default
+      ["" #:when has-default?
        default]
       [""
        (printf "No default value is available. Please try again, or hit Ctrl-C to abandon.\n")
@@ -61,17 +73,14 @@
            (begin (printf "Invalid input. Please try again, or hit Ctrl-C to abandon.\n")
                   (retry)))])))
 
-(define *default-guest-ram* 256)
-(define *default-guest-cpus* 1)
-(define *default-image-dir*
-  (path->string (build-path (getenv "HOME") "src/base-image-scripts/personalcloud-images")))
-
 (when (or interactive? ;; explicitly interactive
           (not vmname)) ;; implicitly interactive
-  (when (not vmname) (set! vmname (prompt-for "VM name" values #f)))
+  (when (not vmname) (set! vmname (prompt-for "VM name" values #f #:has-default? #f)))
   (when (not guest-ram) (set! guest-ram (prompt-for "RAM in megabytes" string->number *default-guest-ram*)))
   (when (not guest-cpus) (set! guest-cpus (prompt-for "Number of CPUs" string->number *default-guest-cpus*)))
-  (when (not image-dir) (set! image-dir (prompt-for "Location to place disk image" values *default-image-dir*))))
+  (when (not image-dir) (set! image-dir (prompt-for "Location to place disk image" values *default-image-dir*)))
+  (when (not image-size) (set! image-size (prompt-for "Size of disk image" values *default-image-size*
+                                                      #:default-text "size of base image"))))
 
 (when (not guest-ram) (set! guest-ram *default-guest-ram*))
 (when (not guest-cpus) (set! guest-cpus *default-guest-cpus*))
@@ -173,6 +182,7 @@ ENDSCRIPT
   (printf "  with disk image ~a\n" image-path)
   (printf "  and ~a MB RAM\n" guest-ram)
   (printf "  and ~a CPUs\n" guest-cpus)
+  (printf "  and disk image size ~a\n" (or image-size "the same as the base image"))
   (printf "----------------------------------------\n")
   (printf "Ctrl-C to cancel, enter to continue.\n")
   (read-line)
@@ -190,11 +200,19 @@ ENDSCRIPT
 
   (make-directory* image-dir)
 
-  (system* (find-executable-path "qemu-img")
-           "create"
-           "-f" "qcow2"
-           "-b" base-path
-           image-path)
+  ;; If the image size is not the same as the base image size, or
+  ;; you've used qemu-img resize, then in the host, run fdisk and
+  ;; delete-and-recreate the 1st partition, then REBOOT, then run
+  ;; resize2fs.
+  (apply system*
+         (find-executable-path "qemu-img")
+         "create"
+         "-f" "qcow2"
+         "-b" base-path
+         image-path
+         (if image-size
+             (list image-size)
+             (list)))
 
   (call-with-temporary-file
    (xexpr->string
