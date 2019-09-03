@@ -17,6 +17,7 @@
 (define image-dir #f)
 (define image-size #f)
 (define interactive? #f)
+(define configure-only? #f)
 
 (define *default-guest-ram* 256)
 (define *default-guest-cpus* 1)
@@ -48,6 +49,9 @@
    [("--interactive" "-i")
     ("use interactive configuration for values not supplied on the command line")
     (set! interactive? #t)]
+   [("--configure-only")
+    ("just look for running, unconfigured VMs to configure")
+    (set! configure-only? #t)]
    #:args ([vmname #f])
    (values vmname)))
 
@@ -74,7 +78,7 @@
                   (retry)))])))
 
 (when (or interactive? ;; explicitly interactive
-          (not vmname)) ;; implicitly interactive
+          (and (not vmname) (not configure-only?))) ;; implicitly interactive
   (when (not vmname) (set! vmname (prompt-for "VM name" values #f #:has-default? #f)))
   (when (not guest-ram) (set! guest-ram (prompt-for "RAM in megabytes" string->number *default-guest-ram*)))
   (when (not guest-cpus) (set! guest-cpus (prompt-for "Number of CPUs" string->number *default-guest-cpus*)))
@@ -175,7 +179,7 @@ ENDSCRIPT
       (keep-waiting)))
   (sleep 2))
 
-(define (main)
+(define (create-domain!)
   (printf "----------------------------------------\n")
   (printf "About to create domain \"~a\",\n" vmname)
   (printf "  based on ~a\n" base-path)
@@ -273,4 +277,10 @@ ENDSCRIPT
   (vm-configure #:wait-for (set vmname))
   (vm-wait vmname))
 
-(void (main))
+(define (main)
+  (if configure-only?
+      (vm-configure)
+      (create-domain!)))
+
+(module+ main
+  (void (main)))
