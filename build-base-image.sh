@@ -73,6 +73,7 @@ echo 'LANG=en_US.UTF-8' > /etc/default/locale
 locale-gen
 apt-get install -y linux-image-amd64 grub-pc
 apt-get install -y avahi-daemon avahi-utils libnss-mdns
+cp /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/.
 apt-get install -y sudo openssh-server ca-certificates ${PKGS}
 rm /etc/ssh/ssh_host_*
 echo 'auto lo' > /etc/network/interfaces
