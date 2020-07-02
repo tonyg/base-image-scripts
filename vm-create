@@ -212,6 +212,7 @@ ENDSCRIPT
          (find-executable-path "qemu-img")
          "create"
          "-f" "qcow2"
+         "-F" "qcow2"
          "-b" base-path
          image-path
          (if image-size
