@@ -22,7 +22,7 @@
   (system* (find-executable-path "virsh") "destroy" vmname) ;; stops it, if it's running
   (system* (find-executable-path "virsh") "undefine" vmname)
 
-  (match (filter-map (match-lambda [`(source ((file ,f))) f] [_ #f])
+  (match (filter-map (match-lambda [`(source ((file ,f) ,_ ...)) f] [_ #f])
                      (se-path*/list '(domain devices disk) di))
     [(list image-filename)
      (delete-file* image-filename)]
