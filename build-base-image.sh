@@ -75,6 +75,8 @@ apt-get install -y linux-image-amd64 grub-pc
 apt-get install -y avahi-daemon avahi-utils libnss-mdns
 cp /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/.
 apt-get install -y sudo openssh-server ca-certificates ${PKGS}
+apt-get full-upgrade -y --autoremove --purge
+apt-get clean
 rm /etc/ssh/ssh_host_*
 echo 'auto lo' > /etc/network/interfaces
 echo 'iface lo inet loopback' >> /etc/network/interfaces
