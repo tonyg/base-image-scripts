@@ -6,14 +6,14 @@ VDI=${VDI:-base}
 DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
-SUITE=${SUITE:-buster}
+SUITE=${SUITE:-bullseye}
 SECURITY=${SECURITY:-yes}
 
 VDITYPE=${VDITYPE:-qcow2}
 VDIEXT=${VDIEXT:-img}
 
 # These defaults are useful for working with ansible.
-PKGS=${PKGS:-python python-apt}
+PKGS=${PKGS:-python3 python3-apt python-is-python3}
 
 if [ `whoami` != 'root' ]; then
     echo "You have to be root to run this. Aborting."
@@ -63,7 +63,7 @@ chmod +x /usr/sbin/policy-rc.d
 rm -f /etc/apt/sources.list
 echo "deb http://httpredir.debian.org/debian ${SUITE} main contrib non-free" >> /etc/apt/sources.list
 echo "deb http://httpredir.debian.org/debian ${SUITE}-updates main contrib non-free" >> /etc/apt/sources.list
-if [ "${SECURITY}" = "yes" ]; then echo "deb http://security.debian.org/ ${SUITE}/updates main contrib non-free" >> /etc/apt/sources.list; fi
+if [ "${SECURITY}" = "yes" ]; then echo "deb http://security.debian.org/debian-security ${SUITE}-security main contrib non-free" >> /etc/apt/sources.list; fi
 rm -rf /var/lib/apt/lists
 mkdir -p /var/lib/apt/lists/partial
 apt-get update
@@ -107,7 +107,7 @@ umount $TARGET/sys
 mount -o remount,ro $TARGET
 sync
 blockdev --flushbufs ${DEVICE}
-python -c 'import os; os.fsync(open("'${DEVICE}'", "r+b"))'
+python3 -c 'import os; os.fsync(open("'${DEVICE}'", "r+b"))'
 sleep 1
 umount $TARGET
 rmdir $TARGET
