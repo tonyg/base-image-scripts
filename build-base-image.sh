@@ -6,7 +6,7 @@ VDI=${VDI:-base}
 DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
-SUITE=${SUITE:-bullseye}
+SUITE=${SUITE:-bookworm}
 SECURITY=${SECURITY:-yes}
 
 VDITYPE=${VDITYPE:-qcow2}
