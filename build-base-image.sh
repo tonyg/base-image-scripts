@@ -3,6 +3,7 @@
 
 SIZE=${SIZE:-10G}
 VDI=${VDI:-base}
+ROOTKEY=${ROOTKEY:-base-root-key}
 DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
@@ -34,9 +35,9 @@ set -e
 
 apt install --no-install-recommends --no-install-suggests debootstrap
 
-if [ ! -f ${VDI}-root-key.pub ]; then
-    ssh-keygen -f ${VDI}-root-key -P ""
-    chown $(logname) ${VDI}-root-key ${VDI}-root-key.pub
+if [ ! -f ${ROOTKEY}.pub ]; then
+    ssh-keygen -f ${ROOTKEY} -P ""
+    chown $(logname) ${ROOTKEY} ${ROOTKEY}.pub
 fi
 
 qemu-img create -f raw $VDI.raw $SIZE
@@ -99,7 +100,7 @@ cp postbootscript.sh $TARGET/root/.
 
 mkdir -p $TARGET/root/.ssh
 chmod 0700 $TARGET/root/.ssh
-cp ${VDI}-root-key.pub $TARGET/root/.ssh/authorized_keys
+cp ${ROOTKEY}.pub $TARGET/root/.ssh/authorized_keys
 chmod 0644 $TARGET/root/.ssh/authorized_keys
 
 sync
