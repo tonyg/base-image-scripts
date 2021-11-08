@@ -2,15 +2,14 @@
 #lang racket
 
 (require racket/cmdline)
+(require racket/runtime-path)
 (require xml)
 (require xml/path)
 (require "kvm-utils.rkt")
 
-(define base-path
-  (path->string (build-path (getenv "HOME") "src/base-image-scripts/base.img")))
-
-(define root-key
-  (path->string (build-path (getenv "HOME") "src/base-image-scripts/base-root-key")))
+(define-runtime-path base-image-scripts-dir ".")
+(define base-path (path->string (build-path base-image-scripts-dir "base.img")))
+(define root-key (path->string (build-path base-image-scripts-dir "base-root-key")))
 
 (define guest-ram #f)
 (define guest-cpus #f)
@@ -22,7 +21,7 @@
 (define *default-guest-ram* 256)
 (define *default-guest-cpus* 1)
 (define *default-image-dir*
-  (path->string (build-path (getenv "HOME") "src/base-image-scripts/personalcloud-images")))
+  (path->string (build-path base-image-scripts-dir "personalcloud-images")))
 (define *default-image-size* #f) ;; #f --> same as base image size
 
 (define-values (vmname)
@@ -33,7 +32,7 @@
     (set! root-key PATH)]
    [("--base" "-b") PATH
     ("path to base.img" (format "default: ~a" base-path))
-    (set! base-path PATH)]
+    (set! base-path (path->string (path->complete-path PATH base-image-scripts-dir)))]
    [("--ram" "-m") MEGABYTES
     ("amount of RAM to give the domain" (format "default: ~a megabytes" *default-guest-ram*))
     (set! guest-ram (string->number MEGABYTES))]
