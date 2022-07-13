@@ -9,6 +9,7 @@ TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
 SUITE=${SUITE:-bookworm}
 SECURITY=${SECURITY:-yes}
+BACKPORTS=${BACKPORTS:-no}
 
 VDITYPE=${VDITYPE:-qcow2}
 VDIEXT=${VDIEXT:-img}
@@ -64,6 +65,8 @@ chmod +x /usr/sbin/policy-rc.d
 rm -f /etc/apt/sources.list
 echo "deb http://httpredir.debian.org/debian ${SUITE} main contrib non-free" >> /etc/apt/sources.list
 echo "deb http://httpredir.debian.org/debian ${SUITE}-updates main contrib non-free" >> /etc/apt/sources.list
+if [ "${BACKPORTS}" = "yes" ]; then echo "deb http://httpredir.debian.org/debian ${SUITE}-backports main contrib non-free" >> /etc/apt/sources.list; fi
+if [ "${SECURITY}" = "oldstyle" ]; then echo "deb http://security.debian.org/debian-security ${SUITE}/updates main contrib non-free" >> /etc/apt/sources.list; fi
 if [ "${SECURITY}" = "yes" ]; then echo "deb http://security.debian.org/debian-security ${SUITE}-security main contrib non-free" >> /etc/apt/sources.list; fi
 rm -rf /var/lib/apt/lists
 mkdir -p /var/lib/apt/lists/partial
