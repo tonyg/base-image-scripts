@@ -18,7 +18,7 @@
 (define interactive? #f)
 (define configure-only? #f)
 
-(define *default-guest-ram* 256)
+(define *default-guest-ram* 1024) ;; apparently 256MB isn't enough for Debian bookworm anymore!
 (define *default-guest-cpus* 1)
 (define *default-image-dir*
   (path->string (build-path base-image-scripts-dir "personalcloud-images")))
@@ -223,12 +223,15 @@ ENDSCRIPT
     `(domain ((type "kvm"))
       (name ,vmname)
       (memory ((unit "MiB")) ,(number->string guest-ram))
+      ;; (memoryBacking (source ((type "memfd")))
+      ;;                (access ((mode "shared"))))
       (vcpu ,(number->string guest-cpus))
       (os (type ((arch "x86_64") (machine "pc-i440fx-2.8")) "hvm")
           (boot ((dev "hd"))))
       (features (acpi)
                 (apic)
                 (vmport ((state "off"))))
+      (cpu ((mode "host-model")))
       (devices
        (disk ((device "disk") (type "file"))
              (driver ((name "qemu") (type "qcow2")))
@@ -276,11 +279,9 @@ ENDSCRIPT
                       (slot "0x05")
                       (function "0x0")))))))
    (lambda (tmpfile)
-     (system* (find-executable-path "virsh")
-              "define" tmpfile
-              "--validate")))
+     (run-virsh "define" tmpfile "--validate")))
 
-  (system* (find-executable-path "virsh") "start" vmname)
+  (run-virsh "start" vmname)
 
   (vm-configure #:wait-for (set vmname))
   (vm-wait vmname))

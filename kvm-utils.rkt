@@ -10,6 +10,8 @@
          clean-mac
          substitute
 
+         run-virsh
+         run-virsh/output
          domain-info
          running-domains)
 
@@ -71,19 +73,21 @@
               (or (getenv "LIBVIRT_DEFAULT_URI")
                   "qemu:///system")))
 
-(define (domain-info name/id/uuid)
+(define (run-virsh . args)
+  (apply system* (find-executable-path "virsh") (filter values args)))
+
+(define (run-virsh/output . args)
+  (with-output-to-string (lambda () (apply run-virsh args))))
+
+(define (domain-info name/id/uuid #:inactive? [inactive? #f])
   (define ok? #f)
   (define xml-str
     (parameterize ((current-error-port (open-output-nowhere)))
       (with-output-to-string
         (lambda ()
-          (set! ok? (system* (find-executable-path "virsh") "dumpxml" name/id/uuid))))))
+          (set! ok? (run-virsh "dumpxml" name/id/uuid (and inactive? "--inactive")))))))
   (and ok? (string->xexpr/defaults xml-str)))
 
 (define (running-domains)
   (filter (lambda (d) (not (equal? d "")))
-          (string-split (with-output-to-string
-                          (lambda ()
-                            (system* (find-executable-path "virsh") "list" "--name")))
-                        "\n")))
-
+          (string-split (run-virsh/output "list" "--name") "\n")))

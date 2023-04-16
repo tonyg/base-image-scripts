@@ -1,0 +1,63 @@
+#!/usr/bin/env racket
+#lang racket
+
+(require racket/cmdline)
+(require xml)
+(require xml/path)
+(require "kvm-utils.rkt")
+
+(define *mode* 'add)
+
+(define-values (vm-name host-path guest-tag)
+  (command-line
+   #:once-any
+   [("--add" "-a")
+    "Add the filesystem definition"
+    (set! *mode* 'add)]
+   [("--remove" "-r")
+    "Remove the filesystem definition"
+    (set! *mode* 'remove)]
+   #:args (vm-name host-path guest-tag)
+   (values vm-name host-path guest-tag)))
+
+(when (equal? host-path "/")
+  (log-warning "NOTE: trying to export host's root hasn't worked for me in the past. YMMV"))
+
+(define existing (domain-info vm-name))
+
+(when (not existing)
+  (error 'domain-info "No such VM: ~a" vm-name))
+
+(unless (se-path* '(domain memoryBacking) existing)
+  (call-with-temporary-file
+   (xexpr->string
+    (append existing `((memoryBacking (source ((type "memfd")))
+                                      (access ((mode "shared")))))))
+   (lambda (tmpfile)
+     (printf "Adding memoryBacking configuration.\n")
+     (run-virsh "define" tmpfile "--validate")
+     (printf "Shutting down to apply the change.\n")
+     (run-virsh "shutdown" vm-name)
+     (let loop ()
+       (when (member vm-name (running-domains))
+         (printf "Waiting for shutdown...\n")
+         (sleep 1)
+         (loop)))
+     (printf "Starting domain again.\n")
+     (run-virsh "start" vm-name))))
+
+;; TODO: Enable DAX, when it's available in stock builds
+
+(define fs-definition
+  `(filesystem ((type "mount") (accessmode "passthrough"))
+               (driver ((type "virtiofs") (queue "1024")))
+               (source ((dir ,host-path)))
+               (target ((dir ,guest-tag)))))
+
+(call-with-temporary-file
+ (xexpr->string fs-definition)
+ (lambda (tmpfile)
+   (run-virsh (match *mode*
+                ['add "attach-device"]
+                ['remove "detach-device"])
+              vm-name tmpfile "--persistent" "--live")))
