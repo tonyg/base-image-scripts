@@ -9,6 +9,7 @@ DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
 PROXY=${PROXY:-http://localhost:3129/}
 MIRROR=${MIRROR:-http://dl-cdn.alpinelinux.org/alpine/}
+REALUSER=${REALUSER:-$(logname 2>/dev/null)}
 
 VDITYPE=${VDITYPE:-qcow2}
 VDIEXT=${VDIEXT:-img}
@@ -18,6 +19,13 @@ PKGS=${PKGS:-python3}
 
 if [ `whoami` != 'root' ]; then
     echo "You have to be root to run this. Aborting."
+    exit 1
+fi
+
+if [ -z "$REALUSER" ]
+then
+    # `logname` doesn't work without utmp.
+    echo "logname couldn't figure out who the non-root user is. Please supply REALUSER."
     exit 1
 fi
 
@@ -33,16 +41,13 @@ fi
 
 set -e
 
-# https://stackoverflow.com/questions/56188505/is-there-a-simple-alternative-to-who-am-i-and-logname
-realuser=$(stat -c "%U" $(tty))
-
 [ -f apk.static ] || wget https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic//v2.14.0/x86_64/apk.static
 chmod a+x apk.static
-chown $realuser apk.static
+chown $REALUSER apk.static
 
 if [ ! -f ${ROOTKEY}.pub ]; then
     ssh-keygen -f ${ROOTKEY} -P ""
-    chown $realuser ${ROOTKEY} ${ROOTKEY}.pub
+    chown $REALUSER ${ROOTKEY} ${ROOTKEY}.pub
 fi
 
 qemu-img create -f raw $VDI.raw $SIZE
@@ -118,5 +123,5 @@ losetup -d ${DEVICE}
 sleep 1
 
 qemu-img convert -f raw -O $VDITYPE $VDI.raw $VDI.$VDIEXT
-chown $realuser $VDI.$VDIEXT
+chown $REALUSER $VDI.$VDIEXT
 rm $VDI.raw
