@@ -1,0 +1,16 @@
+#!/bin/sh
+vmname=$1
+if [ -z "$vmname" ]
+then
+    echo "Usage: vm-ssh vmname [ssh arguments ...]"
+    exit 1
+fi
+shift
+unset SSH_AUTH_SOCK
+exec ssh \
+     -F /dev/null \
+     -o StrictHostKeyChecking=no \
+     -o UserKnownHostsFile=/dev/null \
+     -i "$(dirname "$0")"/base-root-key \
+     root@$vmname.local \
+     "$@"

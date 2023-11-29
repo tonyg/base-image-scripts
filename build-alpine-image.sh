@@ -33,13 +33,16 @@ fi
 
 set -e
 
+# https://stackoverflow.com/questions/56188505/is-there-a-simple-alternative-to-who-am-i-and-logname
+realuser=$(stat -c "%U" $(tty))
+
 [ -f apk.static ] || wget https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic//v2.14.0/x86_64/apk.static
 chmod a+x apk.static
-chown $(logname) apk.static
+chown $realuser apk.static
 
 if [ ! -f ${ROOTKEY}.pub ]; then
     ssh-keygen -f ${ROOTKEY} -P ""
-    chown $(logname) ${ROOTKEY} ${ROOTKEY}.pub
+    chown $realuser ${ROOTKEY} ${ROOTKEY}.pub
 fi
 
 qemu-img create -f raw $VDI.raw $SIZE
@@ -115,5 +118,5 @@ losetup -d ${DEVICE}
 sleep 1
 
 qemu-img convert -f raw -O $VDITYPE $VDI.raw $VDI.$VDIEXT
-chown $(logname) $VDI.$VDIEXT
+chown $realuser $VDI.$VDIEXT
 rm $VDI.raw
