@@ -1,11 +1,10 @@
-# Debootstrapping reusable qemu debian or alpine images
-
-**NB. The text here is a little out-of-date, but explains what's going
-  on in `build-base-image.sh` fairly well. Go read
-  [build-base-image.sh](build-base-image.sh)!**
+# Producing small, reusable qemu debian and alpine images
 
 The idea is to use `debootstrap` resp. `apk.static` to directly install debian or alpine on a
 target partition or volume.
+
+See [build-base-image.sh](build-base-image.sh) (Debian) and
+[build-alpine-image.sh](build-alpine-image.sh) (Alpine).
 
 # Prerequisites
 
