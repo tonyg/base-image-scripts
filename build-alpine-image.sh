@@ -78,6 +78,7 @@ echo template-alpine > /etc/hostname
 dd bs=440 count=1 conv=notrunc if=/usr/share/syslinux/mbr.bin of=${DEVICE}
 extlinux --install /boot
 sed -e 's:${DEVICE}p1:/dev/vda1:g' -i /boot/extlinux.conf
+sed -e 's:TIMEOUT \d\+:TIMEOUT 1:g' -i /boot/extlinux.conf
 echo 'LABEL=alpineroot / ext4 rw 0 0' > /etc/fstab
 for f in networking sshd avahi-daemon local; do rc-update add \$f default; done
 for f in devfs dmesg mdev; do rc-update add \$f sysinit; done
