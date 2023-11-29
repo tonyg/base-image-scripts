@@ -118,6 +118,7 @@ ENDSCRIPT
     (define-values (child-process from-process to-process stderr-from-process)
       (subprocess #f #f (current-error-port)
                   (find-executable-path "ssh")
+                  "-F" "/dev/null"
                   "-o" "BatchMode=yes"
                   "-o" "StrictHostKeyChecking=no"
                   "-o" "UserKnownHostsFile=/dev/null"
