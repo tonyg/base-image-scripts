@@ -1,8 +1,21 @@
 #!/bin/sh
 set -e
 rm -f *.raw
-if [ -d target/dev ]; then umount target/dev; fi
-if [ -d target/proc ]; then umount target/proc; fi
-if [ -d target/sys ]; then umount target/sys; fi
-if [ -d target ]; then umount target || true; rmdir target; fi
+
+ismounted() {
+    cat /proc/self/mountinfo | cut -d' ' -f 5 | grep -q "$1"
+}
+
+cleanup() {
+    if [ -d "$1" ] && ismounted "$1"
+    then
+        umount "$1"
+    fi
+}
+
+cleanup `pwd`/target/dev
+cleanup `pwd`/target/proc
+cleanup `pwd`/target/sys
+cleanup `pwd`/target
+rmdir target
 losetup -d /dev/loop0
