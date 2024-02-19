@@ -17,6 +17,7 @@
 (define image-size #f)
 (define interactive? #f)
 (define configure-only? #f)
+(define extra-networks '())
 
 (define *default-guest-ram* 1024) ;; apparently 256MB isn't enough for Debian bookworm anymore!
 (define *default-guest-cpus* 1)
@@ -51,8 +52,14 @@
    [("--configure-only")
     ("just look for running, unconfigured VMs to configure")
     (set! configure-only? #t)]
+   #:multi
+   [("--net" "-n") NETWORK
+    ("additional libvirt networks to add interfaces for")
+    (set! extra-networks (cons NETWORK extra-networks))]
    #:args ([vmname #f])
    (values vmname)))
+
+(set! extra-networks (reverse extra-networks))
 
 (define (prompt-for what parser default
                     #:has-default? [has-default? #t]
@@ -187,6 +194,8 @@ ENDSCRIPT
   (printf "  and ~a MB RAM\n" guest-ram)
   (printf "  and ~a CPUs\n" guest-cpus)
   (printf "  and disk image size ~a\n" (or image-size "the same as the base image"))
+  (when (pair? extra-networks)
+    (printf "  and extra networks ~a\n" extra-networks))
   (printf "----------------------------------------\n")
   (printf "Ctrl-C to cancel, enter to continue.\n")
   (read-line)
@@ -246,6 +255,11 @@ ENDSCRIPT
                             (function "0x0")
                             (slot "0x03")
                             (type "pci"))))
+       ,@(map (lambda (net)
+                `(interface ((type "network"))
+                   (source ((network ,net)))
+                   (model ((type "virtio")))))
+              extra-networks)
        (serial ((type "pty")) (target ((port "0"))))
        (console ((type "pty")) (target ((port "0") (type "serial"))))
        (input ((bus "ps2") (type "mouse")))
