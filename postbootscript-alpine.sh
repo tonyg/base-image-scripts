@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# Grow the filesystem
+# This `---pretend-input-tty` flag (note triple dash!) is undocumented (!)
+# See https://unix.stackexchange.com/questions/190317/gnu-parted-resizepart-in-script
+#  or https://techtitbits.com/2018/12/using-parteds-resizepart-non-interactively-on-a-busy-partition/
+yes | parted ---pretend-input-tty /dev/vda resizepart 1 '100%'
+resize2fs /dev/vda1
+
 cat > /etc/network/interfaces <<EOF
 auto lo
 iface lo inet loopback

@@ -76,7 +76,7 @@ echo 'en_US.UTF-8 UTF-8' > /etc/locale.gen
 echo 'LANG=en_US.UTF-8' > /etc/default/locale
 locale-gen
 apt-get install -y linux-image-amd64 grub-pc
-apt-get install -y avahi-daemon avahi-utils libnss-mdns
+apt-get install -y avahi-daemon avahi-utils libnss-mdns parted
 cp /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/.
 apt-get install -y sudo openssh-server ca-certificates ${PKGS}
 apt-get full-upgrade -y --autoremove --purge

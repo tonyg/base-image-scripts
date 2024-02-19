@@ -75,7 +75,7 @@ echo "${MIRROR}/${BRANCH}/main" > /etc/apk/repositories
 echo "${MIRROR}/${BRANCH}/community" >> /etc/apk/repositories
 apk update
 apk upgrade
-apk add linux-virt syslinux avahi avahi-tools sudo openssh-server ca-certificates
+apk add linux-virt syslinux avahi avahi-tools sudo openssh-server ca-certificates parted e2fsprogs-extra
 apk add ${PKGS}
 apk cache purge
 echo 'auto lo' > /etc/network/interfaces
