@@ -8,7 +8,7 @@
 (require "kvm-utils.rkt")
 
 (define-runtime-path base-image-scripts-dir ".")
-(define base-path (path->string (build-path base-image-scripts-dir "base.img")))
+(define base-path (path->string (build-path base-image-scripts-dir "trixie.img")))
 (define root-key (path->string (build-path base-image-scripts-dir "base-root-key")))
 
 (define guest-ram #f)
