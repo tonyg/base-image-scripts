@@ -10,12 +10,23 @@
          clean-mac
          substitute
 
+         run
+         run/output
+         with-silent-stderr
+
          run-virsh
          run-virsh/output
+
          domain-info
-         running-domains)
+
+         list-domains
+         all-domains
+         running-domains
+
+         image-info)
 
 (require xml)
+(require json)
 (require rackunit)
 
 ;;---------------------------------------------------------------------------
@@ -68,26 +79,51 @@
 
 ;;---------------------------------------------------------------------------
 
+(define (run program . args)
+  (apply system* (find-executable-path program) (filter values args)))
+
+(define (run/output #:check? [check? #t] program . args)
+  (define ok? #f)
+  (define output
+    (with-output-to-string
+      (lambda ()
+        (set! ok? (apply run program args)))))
+  (and (or (not check?) ok?) output))
+
+(define-syntax-rule (with-silent-stderr expr ...)
+  (parameterize ((current-error-port (open-output-nowhere))) expr ...))
+
+;;---------------------------------------------------------------------------
+
 ;; Set LIBVIRT_DEFAULT_URI appropriately for the usual case.
 (void (putenv "LIBVIRT_DEFAULT_URI"
               (or (getenv "LIBVIRT_DEFAULT_URI")
                   "qemu:///system")))
 
-(define (run-virsh . args)
-  (apply system* (find-executable-path "virsh") (filter values args)))
-
-(define (run-virsh/output . args)
-  (with-output-to-string (lambda () (apply run-virsh args))))
+(define (run-virsh . args) (apply run "virsh" args))
+(define (run-virsh/output . args) (apply run/output "virsh" args))
 
 (define (domain-info name/id/uuid #:inactive? [inactive? #f])
-  (define ok? #f)
   (define xml-str
-    (parameterize ((current-error-port (open-output-nowhere)))
-      (with-output-to-string
-        (lambda ()
-          (set! ok? (run-virsh "dumpxml" name/id/uuid (and inactive? "--inactive")))))))
-  (and ok? (string->xexpr/defaults xml-str)))
+    (with-silent-stderr
+      (run-virsh/output "dumpxml" name/id/uuid (and inactive? "--inactive"))))
+  (and xml-str (string->xexpr/defaults xml-str)))
 
-(define (running-domains)
+(define (list-domains . flags)
   (filter (lambda (d) (not (equal? d "")))
-          (string-split (run-virsh/output "list" "--name") "\n")))
+          (string-split (apply run-virsh/output "list" flags) "\n")))
+
+(define (all-domains) (list-domains "--name" "--all"))
+(define (running-domains) (list-domains "--name"))
+
+;;---------------------------------------------------------------------------
+
+(define (image-info image-file-name)
+  (define json-str
+    (with-silent-stderr
+      (run/output "qemu-img" "info"
+                  "--force-share"
+                  "--output=json"
+                  "--backing-chain"
+                  image-file-name)))
+  (and json-str (string->jsexpr json-str)))

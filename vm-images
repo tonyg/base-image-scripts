@@ -1,0 +1,38 @@
+#!/usr/bin/env racket
+#lang racket
+
+(require racket/cmdline)
+(require "kvm-utils.rkt")
+(require xe)
+
+(define (main)
+  (for [(dom (all-domains))]
+    (printf "~a:\n" dom)
+    (define info (domain-info dom))
+    (for [(disk (xexpr@ info 'domain / 'devices / 'disk))]
+      (define device (xexpr1 disk '@device))
+      (define driver-name (xexpr1 disk / 'driver '@name))
+      (define driver-type (xexpr1 disk / 'driver '@type))
+      (define source-file (xexpr1 disk / 'source '@file #:default #f))
+      (define target (xexpr1 disk / 'target '@dev #:default #f))
+      (printf " - ~a: ~a ~a ~a\n"
+              target
+              device
+              driver-name
+              driver-type
+              )
+      (when source-file
+        (define image (image-info source-file))
+        (if image
+            (for [(i image)]
+              (define actual-size (hash-ref i 'actual-size #f))
+              (define virtual-size (hash-ref i 'virtual-size #f))
+              (define filename (hash-ref i 'filename #f))
+              (printf "    - ~a\n" filename)
+              (printf "      - actual size ~a MB\n" (quotient actual-size 1048576))
+              (printf "      - virtual size ~a MB\n" (quotient virtual-size 1048576)))
+            (printf "    - (file ~a is not accessible)\n" source-file))))
+    (newline)))
+
+(module+ main
+  (void (main)))

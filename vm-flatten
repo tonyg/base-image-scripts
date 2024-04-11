@@ -1,0 +1,60 @@
+#!/usr/bin/env racket
+#lang racket
+
+(require racket/cmdline)
+(require "kvm-utils.rkt")
+(require xe)
+
+(define-values (vmname specific-disk)
+  (command-line
+   #:args (vmname [specific-disk #f])
+   (values vmname specific-disk)))
+
+(define (running?) (member vmname (running-domains)))
+
+(define (main)
+  (when (not (member vmname (all-domains)))
+    (error 'vm-flatten "VM ~v not found" vmname))
+  (define info (domain-info vmname))
+
+  (define source-files
+    (for/fold [(source-files '())]
+              [(disk (xexpr@ info 'domain / 'devices / 'disk))]
+      (define source-file (xexpr1 disk / 'source '@file #:default #f))
+      (if (and (equal? (xexpr1 disk '@device) "disk")
+               (or (not specific-disk)
+                   (equal? specific-disk source-file)
+                   (equal? specific-disk (xexpr1 disk / 'target '@dev #:default #f))))
+          (cons source-file source-files)
+          source-files)))
+
+  (cond
+    [(null? source-files)
+     (printf "No images selected.\n")
+     (when specific-disk
+       (printf "Perhaps the specific disk name you gave, ~v, doesn't exist for this VM?\n"
+               specific-disk))]
+
+    [else
+     (printf "About to flatten the following files in ~a VM ~a:\n"
+             (if (running?) "RUNNING" "powered-off")
+             vmname)
+     (for [(f source-files)] (printf " - ~a\n" f))
+     (newline)
+
+     (printf "Ctrl-C to cancel, 'yes' to continue.\n")
+     (unless (equal? (read-line) "yes")
+       (error 'vm-destroy "Aborting because of lack of confirmation."))
+
+     (if (running?)
+         (for [(f source-files)]
+           (printf "Running live blockpull on ~a:\n" f)
+           (run-virsh "blockpull" vmname f "--wait" "--verbose")
+           (newline))
+         (for [(f source-files)]
+           (printf "Running offline rebase-to-empty on ~a:\n" f)
+           (run "qemu-img" "rebase" "-p" "-b" "" f)
+           (newline)))]))
+
+(module+ main
+  (main))
