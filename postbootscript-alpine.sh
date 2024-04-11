@@ -53,13 +53,14 @@ dbus-uuidgen --ensure
 
 echo "Awaiting configuration..."
 avahi-publish -s $tmphostname "_personalcloud-configuration._tcp" 22 $allmacs &
+avahipid=$!
 
 while [ ! -f /root/personalcloud-configured ]; do
     sleep 5
     echo "Still waiting..."
 done
 
-kill %1
+kill $avahipid
 
 chmod a-x $0
 
