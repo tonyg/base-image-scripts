@@ -7,7 +7,7 @@ VDI=${VDI:-alpine-${BRANCH}}
 ROOTKEY=${ROOTKEY:-base-root-key}
 DEVICE=${DEVICE:-$(losetup --find)}
 TARGET=${TARGET:-`pwd`/target}
-PROXY=${PROXY:-http://localhost:3129/}
+PROXY=${PROXY:-http://localhost:3130/}
 MIRROR=${MIRROR:-http://dl-cdn.alpinelinux.org/alpine/}
 REALUSER=${REALUSER:-$(logname 2>/dev/null)}
 

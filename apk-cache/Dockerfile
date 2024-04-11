@@ -8,4 +8,4 @@ CMD \
     /etc/init.d/squid start && \
     tail -F /var/log/squid/access.log
 
-EXPOSE 3129
+EXPOSE 3130
