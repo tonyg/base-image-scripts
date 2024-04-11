@@ -17,6 +17,7 @@
 (define image-size #f)
 (define interactive? #f)
 (define configure-only? #f)
+(define should-start? #t)
 (define extra-networks '())
 
 (define *default-guest-ram* 1024) ;; apparently 256MB isn't enough for Debian bookworm anymore!
@@ -52,6 +53,9 @@
    [("--configure-only")
     ("just look for running, unconfigured VMs to configure")
     (set! configure-only? #t)]
+   [("--no-start")
+    ("do not start the machine after creating it")
+    (set! should-start? #f)]
    #:multi
    [("--net" "-n") NETWORK
     ("additional libvirt networks to add interfaces for")
@@ -296,10 +300,11 @@ ENDSCRIPT
    (lambda (tmpfile)
      (run-virsh "define" tmpfile "--validate")))
 
-  (run-virsh "start" vmname)
+  (when should-start?
+    (run-virsh "start" vmname)
 
-  (vm-configure #:wait-for (set vmname))
-  (vm-wait vmname))
+    (vm-configure #:wait-for (set vmname))
+    (vm-wait vmname)))
 
 (define (main)
   (if configure-only?
