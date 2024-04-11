@@ -1,0 +1,48 @@
+#!/bin/sh
+
+imagepath="$1"
+mountpoint="$2"
+
+if [ -z "$imagepath" -o -z "$mountpoint" ]; then
+    echo "Usage: with-temporary-mount <imagepath> <mountpoint>"
+    exit 1
+fi
+
+if [ `whoami` != 'root' ]; then
+    echo "You have to be root to run this. Aborting."
+    exit 1
+fi
+
+echo "About to set up a temporary mount of file $imagepath on mountpoint $mountpoint."
+echo "Enter to confirm or Ctrl-C to cancel."
+read dummy
+
+tempimagename=/tmp/temp-image-$$.raw
+echo "Temporary image name is $tempimagename"
+
+qemu-img convert "$imagepath" -O raw "$tempimagename"
+DEVICE=${DEVICE:-$(losetup --find)}
+losetup -P ${DEVICE} "$tempimagename"
+mkdir -p "$mountpoint"
+mount ${DEVICE}p1 "$mountpoint"
+
+echo
+echo "Mounted! Press enter to sync and unmount."
+echo "(Changes will not be written back at this point.)"
+read dummy
+
+echo "Unmounting."
+sync
+sleep 1
+umount "$mountpoint"
+sync
+sleep 1
+losetup -d ${DEVICE}
+sleep 1
+
+echo "OK, hit enter to write back changes, or Ctrl-C to leave things alone."
+read dummy
+
+qemu-img convert "$tempimagename" -O qcow2 "$imagepath"
+rm -f "$tempimagename"
+rmdir "$mountpoint"
