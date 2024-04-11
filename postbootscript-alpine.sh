@@ -1,5 +1,12 @@
 #!/bin/sh
 
+exec >>/root/postbootscript.log 2>&1
+
+echo
+echo " --- Booting --- "
+date
+echo
+
 # Grow the filesystem
 # This `---pretend-input-tty` flag (note triple dash!) is undocumented (!)
 # See https://unix.stackexchange.com/questions/190317/gnu-parted-resizepart-in-script
