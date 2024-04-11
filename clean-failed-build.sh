@@ -13,9 +13,10 @@ cleanup() {
     fi
 }
 
-cleanup `pwd`/target/dev
-cleanup `pwd`/target/proc
-cleanup `pwd`/target/sys
-cleanup `pwd`/target
-rmdir target
+TARGET=${TARGET:-$(find `pwd` -type d -iname 'target-*')}
+cleanup `pwd`/${TARGET}/dev
+cleanup `pwd`/${TARGET}/proc
+cleanup `pwd`/${TARGET}/sys
+cleanup `pwd`/${TARGET}
+rmdir ${TARGET}
 losetup -d /dev/loop0
