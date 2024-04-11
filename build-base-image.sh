@@ -81,7 +81,8 @@ cp /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/.
 apt-get install -y sudo openssh-server ca-certificates ${PKGS}
 apt-get full-upgrade -y --autoremove --purge
 apt-get clean
-rm /etc/ssh/ssh_host_*
+rm -f /etc/ssh/ssh_host_*
+rm -f /etc/machine-id /var/lib/dbus/machine-id
 echo 'auto lo' > /etc/network/interfaces
 echo 'iface lo inet loopback' >> /etc/network/interfaces
 echo '127.0.0.1 localhost' > /etc/hosts

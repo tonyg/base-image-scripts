@@ -40,6 +40,10 @@ service networking restart
 # (Re)generate host keys
 ssh-keygen -A
 
+# (Re)generate machine-id
+dbus-uuidgen --ensure=/etc/machine-id
+dbus-uuidgen --ensure
+
 echo "Awaiting configuration..."
 avahi-publish -s $tmphostname "_personalcloud-configuration._tcp" 22 $allmacs &
 

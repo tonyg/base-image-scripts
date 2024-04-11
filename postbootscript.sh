@@ -43,7 +43,13 @@ tmphostname="tmp-$(echo $chosenmac | tr -d ':')"
 service networking restart
 
 # (Re)generate host keys
-dpkg-reconfigure openssh-server
+ssh-keygen -A
+systemctl reset-failed ssh
+systemctl restart ssh
+
+# (Re)generate machine-id
+dbus-uuidgen --ensure=/etc/machine-id
+dbus-uuidgen --ensure
 
 echo "Awaiting configuration..."
 avahi-publish -s $tmphostname "_personalcloud-configuration._tcp" 22 $allmacs &

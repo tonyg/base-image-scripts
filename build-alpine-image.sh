@@ -92,6 +92,8 @@ for f in networking sshd avahi-daemon local; do rc-update add \$f default; done
 for f in devfs dmesg mdev; do rc-update add \$f sysinit; done
 for f in hwclock modules sysctl hostname bootmisc syslog; do rc-update add \$f boot; done
 for f in mount-ro killprocs savecache; do rc-update add \$f shutdown; done
+rm -f /etc/ssh/ssh_host_*
+rm -f /etc/machine-id /var/lib/dbus/machine-id
 sync
 sync
 sync
