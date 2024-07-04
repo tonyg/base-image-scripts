@@ -34,7 +34,8 @@ fi
 
 set -e
 
-apt install --no-install-recommends --no-install-suggests debootstrap
+(dpkg -l debootstrap 2>/dev/null | grep -q '^ii') || \
+    apt install --no-install-recommends --no-install-suggests debootstrap
 
 if [ ! -f ${ROOTKEY}.pub ]; then
     ssh-keygen -f ${ROOTKEY} -P ""
