@@ -11,59 +11,11 @@
 (define base-path (path->string (build-path base-image-scripts-dir "trixie.img")))
 (define root-key (path->string (build-path base-image-scripts-dir "base-root-key")))
 
-(define guest-ram #f)
-(define guest-cpus #f)
-(define image-dir #f)
-(define image-size #f)
-(define interactive? #f)
-(define configure-only? #f)
-(define should-start? #t)
-(define extra-networks '())
-
 (define *default-guest-ram* 1024) ;; apparently 256MB isn't enough for Debian bookworm anymore!
 (define *default-guest-cpus* 1)
 (define *default-image-dir*
   (path->string (build-path base-image-scripts-dir "personalcloud-images")))
 (define *default-image-size* #f) ;; #f --> same as base image size
-
-(define-values (vmname)
-  (command-line
-   #:once-each
-   [("--key" "-k") PATH
-    ("path to base-root-key SSH private key file" (format "default: ~a" root-key))
-    (set! root-key PATH)]
-   [("--base" "-b") PATH
-    ("path to base.img" (format "default: ~a" base-path))
-    (set! base-path (path->string (path->complete-path PATH base-image-scripts-dir)))]
-   [("--ram" "-m") MEGABYTES
-    ("amount of RAM to give the domain" (format "default: ~a megabytes" *default-guest-ram*))
-    (set! guest-ram (string->number MEGABYTES))]
-   [("--cpus" "-c") CPUS
-    ("number of CPUS to give the domain" (format "default: ~a" *default-guest-cpus*))
-    (set! guest-cpus (string->number CPUS))]
-   [("--output" "-o") PATH
-    ("path to directory for the new .img" (format "default: ~a" *default-image-dir*))
-    (set! image-dir PATH)]
-   [("--disk" "-d") SIZE
-    ("size of virtual disk image (e.g. \"30G\")" "default: size of base image")
-    (set! image-size SIZE)]
-   [("--interactive" "-i")
-    ("use interactive configuration for values not supplied on the command line")
-    (set! interactive? #t)]
-   [("--configure-only")
-    ("just look for running, unconfigured VMs to configure")
-    (set! configure-only? #t)]
-   [("--no-start")
-    ("do not start the machine after creating it")
-    (set! should-start? #f)]
-   #:multi
-   [("--net" "-n") NETWORK
-    ("additional libvirt networks to add interfaces for")
-    (set! extra-networks (cons NETWORK extra-networks))]
-   #:args ([vmname #f])
-   (values vmname)))
-
-(set! extra-networks (reverse extra-networks))
 
 (define (prompt-for what parser default
                     #:has-default? [has-default? #t]
@@ -86,21 +38,6 @@
        (or candidate
            (begin (printf "Invalid input. Please try again, or hit Ctrl-C to abandon.\n")
                   (retry)))])))
-
-(when (or interactive? ;; explicitly interactive
-          (and (not vmname) (not configure-only?))) ;; implicitly interactive
-  (when (not vmname) (set! vmname (prompt-for "VM name" values #f #:has-default? #f)))
-  (when (not guest-ram) (set! guest-ram (prompt-for "RAM in megabytes" string->number *default-guest-ram*)))
-  (when (not guest-cpus) (set! guest-cpus (prompt-for "Number of CPUs" string->number *default-guest-cpus*)))
-  (when (not image-dir) (set! image-dir (prompt-for "Location to place disk image" values *default-image-dir*)))
-  (when (not image-size) (set! image-size (prompt-for "Size of disk image" values *default-image-size*
-                                                      #:default-text "size of base image"))))
-
-(when (not guest-ram) (set! guest-ram *default-guest-ram*))
-(when (not guest-cpus) (set! guest-cpus *default-guest-cpus*))
-(when (not image-dir) (set! image-dir *default-image-dir*))
-
-(define image-path (path->string (path->complete-path (build-path image-dir (~a vmname ".img")))))
 
 (define script-template #<<ENDSCRIPT
 if [ -f /root/personalcloud-configured ]; then
@@ -188,76 +125,156 @@ ENDSCRIPT
                   (loop (set-union seen (find-and-configure-host macs ipaddr)))]
                  [_ (loop seen)])]))))))
 
+(define (avahi-resolve-host-name name)
+  (let ((rows (map (lambda (line) (string-split line "\t"))
+                   (string-split
+                    (parameterize ((current-error-port (open-output-nowhere)))
+                      (with-output-to-string
+                        (lambda ()
+                          (system* (find-executable-path "avahi-resolve-host-name") "-4" name))))
+                    "\n"))))
+    (and (pair? rows)
+         (>= (length (car rows)) 2)
+         (cadr (car rows)))))
+
 (define (vm-wait vmname)
   (let keep-waiting ()
+    (define (sleep-and-retry) (sleep 1) (keep-waiting))
     (log-info "Waiting for ping to respond...")
-    (unless (parameterize ((current-output-port (open-output-nowhere)))
-              (system* (find-executable-path "ping") "-c" "1" (format "~a.local" vmname)))
-      (keep-waiting)))
+    (match (avahi-resolve-host-name (format "~a.local" vmname))
+      [#f (sleep-and-retry)]
+      [ipstr (if (parameterize ((current-output-port (open-output-nowhere)))
+                   (system* (find-executable-path "ping") "-c" "1" ipstr))
+                 (void)
+                 (sleep-and-retry))]))
   (sleep 2))
 
-(define (create-domain!)
-  (printf "----------------------------------------\n")
-  (printf "About to create domain \"~a\",\n" vmname)
-  (printf "  based on ~a\n" base-path)
-  (printf "  with disk image ~a\n" image-path)
-  (printf "  and ~a MB RAM\n" guest-ram)
-  (printf "  and ~a CPUs\n" guest-cpus)
-  (printf "  and disk image size ~a\n" (or image-size "the same as the base image"))
-  (when (pair? extra-networks)
-    (printf "  and extra networks ~a\n" extra-networks))
-  (printf "----------------------------------------\n")
-  (printf "Ctrl-C to cancel, enter to continue.\n")
-  (read-line)
+(define (main)
+  (define guest-ram #f)
+  (define guest-cpus #f)
+  (define image-dir #f)
+  (define image-size #f)
+  (define interactive? #f)
+  (define configure-only? #f)
+  (define should-start? #t)
+  (define extra-networks '())
 
-  ;;---------------------------------------------------------------------------
+  (define-values (vmname)
+    (command-line
+     #:once-each
+     [("--key" "-k") PATH
+      ("path to base-root-key SSH private key file" (format "default: ~a" root-key))
+      (set! root-key PATH)]
+     [("--base" "-b") PATH
+      ("path to base.img" (format "default: ~a" base-path))
+      (set! base-path (path->string (path->complete-path PATH base-image-scripts-dir)))]
+     [("--ram" "-m") MEGABYTES
+      ("amount of RAM to give the domain" (format "default: ~a megabytes" *default-guest-ram*))
+      (set! guest-ram (string->number MEGABYTES))]
+     [("--cpus" "-c") CPUS
+      ("number of CPUS to give the domain" (format "default: ~a" *default-guest-cpus*))
+      (set! guest-cpus (string->number CPUS))]
+     [("--output" "-o") PATH
+      ("path to directory for the new .img" (format "default: ~a" *default-image-dir*))
+      (set! image-dir PATH)]
+     [("--disk" "-d") SIZE
+      ("size of virtual disk image (e.g. \"30G\")" "default: size of base image")
+      (set! image-size SIZE)]
+     [("--interactive" "-i")
+      ("use interactive configuration for values not supplied on the command line")
+      (set! interactive? #t)]
+     [("--configure-only")
+      ("just look for running, unconfigured VMs to configure")
+      (set! configure-only? #t)]
+     [("--no-start")
+      ("do not start the machine after creating it")
+      (set! should-start? #f)]
+     #:multi
+     [("--net" "-n") NETWORK
+      ("additional libvirt networks to add interfaces for")
+      (set! extra-networks (cons NETWORK extra-networks))]
+     #:args ([vmname #f])
+     (values vmname)))
 
-  (when (not (file-exists? base-path))
-    (error 'vm-create "Cannot find base image ~a" base-path))
+  (set! extra-networks (reverse extra-networks))
 
-  (when (something-exists? image-path)
-    (error 'vm-create "Destination image ~a already exists" image-path))
+  (when (or interactive? ;; explicitly interactive
+            (and (not vmname) (not configure-only?))) ;; implicitly interactive
+    (when (not vmname) (set! vmname (prompt-for "VM name" values #f #:has-default? #f)))
+    (when (not guest-ram) (set! guest-ram (prompt-for "RAM in megabytes" string->number *default-guest-ram*)))
+    (when (not guest-cpus) (set! guest-cpus (prompt-for "Number of CPUs" string->number *default-guest-cpus*)))
+    (when (not image-dir) (set! image-dir (prompt-for "Location to place disk image" values *default-image-dir*)))
+    (when (not image-size) (set! image-size (prompt-for "Size of disk image" values *default-image-size*
+                                                        #:default-text "size of base image"))))
 
-  (when (domain-info vmname)
-    (error 'vm-create "Domain ~a already exists" vmname))
+  (when (not guest-ram) (set! guest-ram *default-guest-ram*))
+  (when (not guest-cpus) (set! guest-cpus *default-guest-cpus*))
+  (when (not image-dir) (set! image-dir *default-image-dir*))
 
-  (make-directory* image-dir)
+  (define image-path (path->string (path->complete-path (build-path image-dir (~a vmname ".img")))))
 
-  ;; If the image size is not the same as the base image size, or
-  ;; you've used qemu-img resize, then in the host, run fdisk and
-  ;; delete-and-recreate the 1st partition, then REBOOT, then run
-  ;; resize2fs.
-  (apply system*
-         (find-executable-path "qemu-img")
-         "create"
-         "-f" "qcow2"
-         "-F" "qcow2"
-         "-b" base-path
-         image-path
-         (if image-size
-             (list image-size)
-             (list)))
+  (define (create-domain!)
+    (printf "----------------------------------------\n")
+    (printf "About to create domain \"~a\",\n" vmname)
+    (printf "  based on ~a\n" base-path)
+    (printf "  with disk image ~a\n" image-path)
+    (printf "  and ~a MB RAM\n" guest-ram)
+    (printf "  and ~a CPUs\n" guest-cpus)
+    (printf "  and disk image size ~a\n" (or image-size "the same as the base image"))
+    (when (pair? extra-networks)
+      (printf "  and extra networks ~a\n" extra-networks))
+    (printf "----------------------------------------\n")
+    (printf "Ctrl-C to cancel, enter to continue.\n")
+    (read-line)
 
-  (call-with-temporary-file
-   (xexpr->string
-    `(domain ((type "kvm"))
-      (name ,vmname)
-      (memory ((unit "MiB")) ,(number->string guest-ram))
-      ;; (memoryBacking (source ((type "memfd")))
-      ;;                (access ((mode "shared"))))
-      (vcpu ,(number->string guest-cpus))
-      (os (type ((arch "x86_64") (machine "pc-i440fx-2.8")) "hvm")
-          (boot ((dev "hd"))))
-      (features (acpi)
-                (apic)
-                (vmport ((state "off"))))
-      (cpu ((mode "host-model")))
-      (devices
-       (disk ((device "disk") (type "file"))
-             (driver ((name "qemu") (type "qcow2")))
-             (source ((file ,image-path)))
-             (target ((bus "virtio") (dev "vda"))))
-       (interface ((type "network"))
+    ;;---------------------------------------------------------------------------
+
+    (when (not (file-exists? base-path))
+      (error 'vm-create "Cannot find base image ~a" base-path))
+
+    (when (something-exists? image-path)
+      (error 'vm-create "Destination image ~a already exists" image-path))
+
+    (when (domain-info vmname)
+      (error 'vm-create "Domain ~a already exists" vmname))
+
+    (make-directory* image-dir)
+
+    ;; If the image size is not the same as the base image size, or
+    ;; you've used qemu-img resize, then in the host, run fdisk and
+    ;; delete-and-recreate the 1st partition, then REBOOT, then run
+    ;; resize2fs.
+    (apply system*
+           (find-executable-path "qemu-img")
+           "create"
+           "-f" "qcow2"
+           "-F" "qcow2"
+           "-b" base-path
+           image-path
+           (if image-size
+               (list image-size)
+               (list)))
+
+    (call-with-temporary-file
+     (xexpr->string
+      `(domain ((type "kvm"))
+               (name ,vmname)
+               (memory ((unit "MiB")) ,(number->string guest-ram))
+               ;; (memoryBacking (source ((type "memfd")))
+               ;;                (access ((mode "shared"))))
+               (vcpu ,(number->string guest-cpus))
+               (os (type ((arch "x86_64") (machine "pc-i440fx-2.8")) "hvm")
+                   (boot ((dev "hd"))))
+               (features (acpi)
+                         (apic)
+                         (vmport ((state "off"))))
+               (cpu ((mode "host-model")))
+               (devices
+                (disk ((device "disk") (type "file"))
+                      (driver ((name "qemu") (type "qcow2")))
+                      (source ((file ,image-path)))
+                      (target ((bus "virtio") (dev "vda"))))
+                (interface ((type "network"))
                   (source ((network "default")))
                   (model ((type "virtio")))
                   (address ((bus "0x00")
@@ -265,54 +282,53 @@ ENDSCRIPT
                             (function "0x0")
                             (slot "0x03")
                             (type "pci"))))
-       ,@(map (lambda (net)
-                `(interface ((type "network"))
-                   (source ((network ,net)))
-                   (model ((type "virtio")))))
-              extra-networks)
-       (serial ((type "pty")) (target ((port "0"))))
-       (console ((type "pty")) (target ((port "0") (type "serial"))))
-       (input ((bus "ps2") (type "mouse")))
-       (input ((bus "ps2") (type "keyboard")))
-       (graphics ((autoport "yes") (type "spice"))
-                 (listen ((type "address")))
-                 (image ((compression "off"))))
-       (video (model ((heads "1")
-                      (primary "yes")
-                      (ram "65536")
-                      (type "qxl")
-                      (vgamem "16384")
-                      (vram "65536")))
-              (address ((bus "0x00")
-                        (domain "0x0000")
-                        (function "0x0")
-                        (slot "0x02")
-                        (type "pci"))))
-       (memballoon ((model "virtio"))
-                   (address
-                    ((bus "0x00")
-                     (domain "0x0000")
-                     (function "0x0")
-                     (slot "0x08")
-                     (type "pci"))))
-       (rng ((model "virtio"))
-            (backend ((model "random")) "/dev/urandom")
-            (alias ((name "rng0")))
-            (address ((type "pci")
-                      (domain "0x0000")
-                      (bus "0x00")
-                      (slot "0x05")
-                      (function "0x0")))))))
-   (lambda (tmpfile)
-     (run-virsh "define" tmpfile "--validate")))
+                ,@(map (lambda (net)
+                         `(interface ((type "network"))
+                            (source ((network ,net)))
+                            (model ((type "virtio")))))
+                       extra-networks)
+                (serial ((type "pty")) (target ((port "0"))))
+                (console ((type "pty")) (target ((port "0") (type "serial"))))
+                (input ((bus "ps2") (type "mouse")))
+                (input ((bus "ps2") (type "keyboard")))
+                (graphics ((autoport "yes") (type "spice"))
+                          (listen ((type "address")))
+                          (image ((compression "off"))))
+                (video (model ((heads "1")
+                               (primary "yes")
+                               (ram "65536")
+                               (type "qxl")
+                               (vgamem "16384")
+                               (vram "65536")))
+                       (address ((bus "0x00")
+                                 (domain "0x0000")
+                                 (function "0x0")
+                                 (slot "0x02")
+                                 (type "pci"))))
+                (memballoon ((model "virtio"))
+                            (address
+                             ((bus "0x00")
+                              (domain "0x0000")
+                              (function "0x0")
+                              (slot "0x08")
+                              (type "pci"))))
+                (rng ((model "virtio"))
+                     (backend ((model "random")) "/dev/urandom")
+                     (alias ((name "rng0")))
+                     (address ((type "pci")
+                               (domain "0x0000")
+                               (bus "0x00")
+                               (slot "0x05")
+                               (function "0x0")))))))
+     (lambda (tmpfile)
+       (run-virsh "define" tmpfile "--validate")))
 
-  (when should-start?
-    (run-virsh "start" vmname)
+    (when should-start?
+      (run-virsh "start" vmname)
 
-    (vm-configure #:wait-for (set vmname))
-    (vm-wait vmname)))
+      (vm-configure #:wait-for (set vmname))
+      (vm-wait vmname)))
 
-(define (main)
   (if configure-only?
       (vm-configure)
       (create-domain!)))
