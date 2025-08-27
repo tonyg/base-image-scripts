@@ -4,5 +4,5 @@ exec /usr/bin/env \
     VDI=trixie \
     SUITE=trixie \
     SECURITY=yes \
-    BACKPORTS=no \
+    BACKPORTS=yes \
     ./build-base-image.sh
