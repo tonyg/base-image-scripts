@@ -263,7 +263,7 @@ ENDSCRIPT
                ;; (memoryBacking (source ((type "memfd")))
                ;;                (access ((mode "shared"))))
                (vcpu ,(number->string guest-cpus))
-               (os (type ((arch "x86_64") (machine "pc-i440fx-2.8")) "hvm")
+               (os (type ((arch "x86_64") (machine "pc-i440fx-9.1")) "hvm")
                    (boot ((dev "hd"))))
                (features (acpi)
                          (apic)
